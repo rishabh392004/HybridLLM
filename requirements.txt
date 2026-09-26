@@ -1,0 +1,24 @@
+# Data handling & Meteorology
+xarray[complete]
+netCDF4
+cfgrib
+eccodes
+xesmf
+rioxarray
+zarr
+
+# Scientific & ML
+numpy
+pandas
+scipy
+torch
+torchvision
+scikit-learn
+
+# Orchestration & UI
+pyyaml
+fastapi
+uvicorn
+streamlit
+cartopy
+matplotlib

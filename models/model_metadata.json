@@ -1,0 +1,12 @@
+{
+    "t_mean": 295.3706359863281,
+    "t_std": 10.734652519226074,
+    "extreme_threshold": 303.76806640625,
+    "num_models": 2,
+    "domain": {
+        "lat_min": 8.0,
+        "lat_max": 38.0,
+        "lon_min": 68.0,
+        "lon_max": 98.0
+    }
+}
