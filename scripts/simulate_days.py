@@ -3,7 +3,7 @@ import sys
 from datetime import datetime, timedelta
 
 # Add the backend directory to python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from seed import seed_data
 

@@ -8,7 +8,7 @@ rioxarray
 zarr
 
 # Scientific & ML
-numpy
+
 pandas
 scipy
 torch
@@ -17,8 +17,8 @@ scikit-learn
 
 # Orchestration & UI
 pyyaml
-fastapi
-uvicorn
+
+
 streamlit
 cartopy
 matplotlib

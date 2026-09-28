@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.dialects.postgresql import insert
 
 # Add the backend directory to python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'backend')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from api.db.database import SessionLocal, engine
 from api.db.models import Forecast, Observation
