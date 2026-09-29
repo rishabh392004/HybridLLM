@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Dark Mode Default (Control Room aesthetic) */
+  --color-background: #090d16;
+  --color-surface: #0f172a;
+  --color-surface-hover: #1e293b;
+  --color-surface-active: #334155;
+  --color-surface-card: rgba(15, 23, 42, 0.75);
+  
+  --color-border: #1e293b;
+  --color-border-muted: #1e293b80;
+  --color-border-focus: #14b8a6;
+  
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  
+  --color-accent: #2dd4bf;       /* Teal-400 */
+  --color-accent-hover: #14b8a6; /* Teal-500 */
+  --color-accent-muted: rgba(45, 212, 191, 0.15);
+  --color-accent-subtle: rgba(45, 212, 191, 0.05);
+
+  --color-sev-normal: #10b981;   /* Emerald 500 */
+  --color-sev-advisory: #0ea5e9; /* Sky 500 */
+  --color-sev-warning: #f59e0b;  /* Amber 500 */
+  --color-sev-severe: #ef4444;   /* Red 500 */
+}
+
+.light {
+  --color-background: #f1f5f9;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f8fafc;
+  --color-surface-active: #e2e8f0;
+  --color-surface-card: rgba(255, 255, 255, 0.85);
+
+  --color-border: #e2e8f0;
+  --color-border-muted: #e2e8f080;
+  --color-border-focus: #0d9488;
+
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+
+  --color-accent: #0d9488;       /* Teal-600 */
+  --color-accent-hover: #0f766e; /* Teal-700 */
+  --color-accent-muted: rgba(13, 148, 136, 0.12);
+  --color-accent-subtle: rgba(13, 148, 136, 0.05);
+
+  --color-sev-normal: #059669;
+  --color-sev-advisory: #0284c7;
+  --color-sev-warning: #d97706;
+  --color-sev-severe: #dc2626;
+}
+
+/* Ensure tabular numerals across all numbers */
+body, table, input, span, div {
+  font-feature-settings: "tnum" 1, "cv02" 1, "cv03" 1, "cv04" 1;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-hover);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Glassmorphism panel helper */
+.glass-panel {
+  background: var(--color-surface-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+}
+
+.glass-panel-subtle {
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--color-border-muted);
+}
+
+.light .glass-panel-subtle {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--color-border-muted);
+}
+
+/* Leaflet control custom dark mode styling */
+.leaflet-container {
+  background: #090d16 !important;
+  font-family: inherit !important;
+}
+
+.leaflet-bar a {
+  background-color: var(--color-surface) !important;
+  color: var(--color-text-primary) !important;
+  border-bottom-color: var(--color-border) !important;
+}
+
+.leaflet-bar a:hover {
+  background-color: var(--color-surface-hover) !important;
+  color: var(--color-accent) !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background: var(--color-surface) !important;
+  color: var(--color-text-primary) !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+.leaflet-popup-tip {
+  background: var(--color-surface) !important;
+}
+
+/* Skeleton animation */
+@keyframes shimmerWave {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmerWave 1.8s infinite;
+}
+
+.light .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.04) 25%,
+    rgba(0, 0, 0, 0.08) 50%,
+    rgba(0, 0, 0, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmerWave 1.8s infinite;
+}
