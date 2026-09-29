@@ -72,7 +72,7 @@ class MLGridMetadata(BaseModel):
     resolution_steps: int = 35
 
 class MLBlendRequest(BaseModel):
-    variable: str = Field(default=""temperature"", description=""'temperature' or 'precipitation'"")
+    variable: str = Field(default="temperature", description="'temperature' or 'precipitation'")
     lead_time_hrs: int = Field(default=48, ge=6, le=240)
     apply_bias_correction: bool = Field(default=True)
     enable_xai: bool = Field(default=False)
@@ -89,13 +89,14 @@ class MLBlendResponse(BaseModel):
     status: str
     variable: str
     lead_time_hrs: int
-    conformal_margin: float = Field(description=""Radius (+/-) of 90% confidence interval"")
+    conformal_margin: float = Field(description="Radius (+/-) of 90% confidence interval")
     verification: MLVerificationStatus
     grid_meta: MLGridMetadata
     geojson: Dict[str, Any]
     attribution_geojson: Optional[Dict[str, Any]] = None
 
 class MLPointForecastResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
     latitude: float
     longitude: float
     nearest_grid_coord: List[float]
