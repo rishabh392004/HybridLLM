@@ -30,7 +30,7 @@ DEM = 200.0 + np.exp(-((LAT_MESH - 34)**2 + (LON_MESH - 78)**2) / 30.0) * 4500.0
 def get_ml_models():
     global BLENDER, DECISION_ENGINE, DATA_CACHE
     if BLENDER is None:
-        meta_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "models", "model_metadata.json")
+        meta_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "models", "model_metadata.json")
         BLENDER = OperationalBlender(meta_path=meta_path)
         DECISION_ENGINE = DecisionIntelligenceEngine()
 
