@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 import json
 
 from api.db.database import get_db
@@ -14,7 +14,7 @@ router = APIRouter()
 @router.get("", response_model=BlendResponse)
 def get_blend(
     region: str,
-    parameter: str,
+    parameter: Literal["rainfall", "temperature", "wind"],
     lead_hours: int,
     ts: Optional[datetime] = None,
     db: Session = Depends(get_db),
@@ -38,7 +38,8 @@ def get_blend(
     # Try saving to cache
     if redis_client:
         try:
-            redis_client.setex(cache_key, 3600, result.model_dump_json())
+            from api.core.config import settings
+            redis_client.setex(cache_key, settings.CACHE_TTL, result.model_dump_json())
         except Exception:
             pass
             

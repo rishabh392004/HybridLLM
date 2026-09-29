@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import Literal
 
 from api.db.database import get_db
 from api.db.models import Weight
@@ -10,15 +11,16 @@ router = APIRouter()
 @router.get("", response_model=WeightGroupResponse)
 def get_weights(
     region: str,
-    parameter: str,
+    parameter: Literal["rainfall", "temperature", "wind"],
     lead_hours: int,
+    season: str = "ALL",
     db: Session = Depends(get_db)
 ):
     records = db.query(Weight).filter(
         Weight.region == region,
         Weight.parameter == parameter,
         Weight.lead_hours == lead_hours,
-        Weight.season == "ALL"
+        Weight.season == season
     ).all()
     
     if not records:

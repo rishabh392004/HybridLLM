@@ -10,7 +10,7 @@ from api.db.database import SessionLocal, engine
 from api.db.models import Forecast, Observation
 from api.services.ingestion.synthetic import SyntheticGenerator
 
-def seed_data(days: int = 30, base_date: datetime = None):
+def seed_data(days: int = 365, base_date: datetime = None):
     if base_date is None:
         base_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         
@@ -38,24 +38,12 @@ def seed_data(days: int = 30, base_date: datetime = None):
                     } for o in obs_list
                 ]
                 
-                # Postgres doesn't have a unique constraint covering just region, ts, parameter yet,
-                # but we can query to prevent duplicates if we want to be safe, or just insert.
-                # Actually wait, the Observation model doesn't have a unique constraint in Milestone 1!
-                # "Observation: id, region, ts, parameter, value" -> no unique constraint defined.
-                # So we can't use ON CONFLICT DO NOTHING for observations without adding a constraint.
-                pass
-            
-            # Since Observation has no unique constraint, let's do it manually or add a constraint.
-            # We'll just do manual check for obs since it's only 18 per day.
-            for obs in obs_list:
-                existing = db.query(Observation).filter(
-                    Observation.region == obs.region,
-                    Observation.parameter == obs.parameter,
-                    Observation.ts == obs.ts
-                ).first()
-                if not existing:
-                    db.add(obs)
-                    total_obs += 1
+                stmt = insert(Observation).values(obs_dicts)
+                stmt = stmt.on_conflict_do_nothing(
+                    constraint='uix_observation_region_ts_param'
+                )
+                res = db.execute(stmt)
+                total_obs += res.rowcount
 
             # For Forecast, there is a unique constraint: 'uix_forecast_region_ts_lead_param_src'
             # We can use ON CONFLICT DO NOTHING
@@ -85,4 +73,4 @@ def seed_data(days: int = 30, base_date: datetime = None):
 
 if __name__ == "__main__":
     print("Starting seed process...")
-    seed_data(days=30)
+    seed_data(days=365)

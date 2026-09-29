@@ -14,8 +14,11 @@ RUN update-ca-certificates && pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+RUN chmod +x /app/backend/entrypoint.sh
+
 RUN useradd -m appuser && chown -R appuser /app
 USER appuser
 
 ENV PYTHONPATH=/app/backend:/app
+ENTRYPOINT ["/app/backend/entrypoint.sh"]
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -29,6 +29,10 @@ class Observation(Base):
     parameter = Column(String, nullable=False)
     value = Column(Float, nullable=False)
 
+    __table_args__ = (
+        UniqueConstraint('region', 'ts', 'parameter', name='uix_observation_region_ts_param'),
+    )
+
 class SkillScore(Base):
     __tablename__ = "skill_scores"
 

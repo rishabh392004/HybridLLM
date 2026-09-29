@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Literal
 
 from api.db.database import get_db
 from api.db.models import Alert
@@ -11,7 +11,7 @@ router = APIRouter()
 @router.get("", response_model=AlertListResponse)
 def get_alerts(
     region: Optional[str] = None,
-    parameter: Optional[str] = None,
+    parameter: Optional[Literal["rainfall", "temperature", "wind"]] = None,
     severity: Optional[str] = None,
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db)
@@ -45,3 +45,16 @@ def get_alerts(
     ]
     
     return AlertListResponse(alerts=alerts)
+
+@router.patch("/{alert_id}/acknowledge")
+def acknowledge_alert(
+    alert_id: int,
+    db: Session = Depends(get_db)
+):
+    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    
+    alert.acknowledged = 1 # Assuming 1 is true
+    db.commit()
+    return {"status": "success", "message": "Alert acknowledged"}

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 from api.db.database import get_db
 from api.db.models import Forecast
@@ -11,7 +11,7 @@ router = APIRouter()
 @router.get("", response_model=List[ForecastResponse])
 def get_forecasts(
     region: Optional[str] = None,
-    parameter: Optional[str] = None,
+    parameter: Optional[Literal["rainfall", "temperature", "wind"]] = None,
     lead_hours: Optional[int] = None,
     source: Optional[str] = None,
     skip: int = Query(0, ge=0),
