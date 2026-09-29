@@ -73,10 +73,7 @@ export const MapPage: React.FC = () => {
   const selectedData = regionsData.find((d) => d.meta.name === currentRegionMeta.name) || regionsData[0];
   const topSource = [...selectedData.blend.sources].sort((a, b) => b.weight - a.weight)[0];
 
-  const tileUrl =
-    theme === 'dark'
-      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-      : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+  const tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
   // Custom marker icon creation with blended values & pulsing indicators
   const createRegionMarkerIcon = (value: number, unit: string, isExtreme: boolean, isSelected: boolean) => {
