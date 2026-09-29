@@ -180,7 +180,7 @@ export const MapPage: React.FC = () => {
               {/* Center point marker */}
               <Marker
                 position={[meta.lat, meta.lon]}
-                icon={createRegionMarkerIcon(blend.blended_value, blend.unit, isExtreme, isSelected)}
+                icon={createRegionMarkerIcon(blend.blended_value, blend.unit, !!isExtreme, isSelected)}
                 eventHandlers={{
                   click: () => {
                     updateParam('region', meta.name);

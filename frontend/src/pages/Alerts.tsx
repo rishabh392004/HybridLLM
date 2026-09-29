@@ -146,7 +146,7 @@ export const AlertsPage: React.FC = () => {
                 SIH Evaluator Demo Case: Extreme Rainfall Event
               </span>
               <span className="px-2 py-0.5 rounded-full bg-red-500/30 text-red-300 text-[10px] font-bold">
-                138.4 mm/day (> 115 mm threshold)
+                138.4 mm/day (&gt; 115 mm threshold)
               </span>
             </div>
             <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">

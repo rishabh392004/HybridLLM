@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Activity,
   Layers,
+  Info,
 } from 'lucide-react';
 
 export const ScoreboardPage: React.FC = () => {
