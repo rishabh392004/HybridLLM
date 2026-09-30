@@ -7,7 +7,7 @@ from scipy.ndimage import zoom
 
 # Path setup to import pipeline modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from pipelines.blend_engine import OperationalBlender
+import os, requests; from pipelines.blend_engine import OperationalBlender; BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
 from pipelines.metrics import build_benchmark_table
 
 st.set_page_config(page_title="Operational Weather Blending Framework", layout="wide")
