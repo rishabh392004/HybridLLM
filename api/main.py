@@ -9,6 +9,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from pipelines.blend_engine import OperationalBlender
 from pipelines.impact_engine import DecisionIntelligenceEngine
 from api.schemas import BlendRequest, BlendResponse, PointForecastResponse, AlertResponse, AlertItem, GridMetadata, VerificationStatus
+from pipelines.copilot_enigne import OperationalCopilot
+from api.schemas import CopilotQueryRequest, CopilotQueryResponse
 
 app = FastAPI(
     title="Operational Weather Blending REST Engine",
@@ -26,6 +28,7 @@ app.add_middleware(
 
 BLENDER = None
 DECISION_ENGINE = None
+COPILOT = None
 DATA_CACHE = {}
 
 LAT_RES, LON_RES = 35, 35
@@ -38,10 +41,11 @@ DEM = 200.0 + np.exp(-((LAT_MESH - 34)**2 + (LON_MESH - 78)**2) / 30.0) * 4500.0
 
 @app.on_event("startup")
 def startup_event():
-    global BLENDER, DECISION_ENGINE, DATA_CACHE
+    global BLENDER, DECISION_ENGINE, COPILOT, DATA_CACHE
     meta_path = os.path.join(os.path.dirname(__file__), "..", "models", "model_metadata.json")
     BLENDER = OperationalBlender(meta_path=meta_path)
     DECISION_ENGINE = DecisionIntelligenceEngine()
+    COPILOT = OperationalCopilot(BLENDER, DECISION_ENGINE)
 
     data_path = os.path.join(os.path.dirname(__file__), "..", "data", "real_multivar_era5.npz")
     if os.path.exists(data_path):
@@ -203,4 +207,25 @@ def get_alerts():
         total_alerts=len(alert_items),
         summary=summary_counts,
         alerts=alert_items
+    )
+
+@app.post("/v1/copilot/query", response_model=CopilotQueryResponse, tags=["Operational Copilot"])
+def copilot_briefing(req: CopilotQueryRequest):
+    t_ifs, t_gc, r_ifs, r_gc, t_obs, r_obs = get_base_inputs()
+
+    (
+        b_celsius, b_rain, _, _, _, _, t_bounds, r_bounds, _, rolling_rmse
+    ) = BLENDER.blend(t_ifs, t_gc, r_ifs, r_gc, DEM, obs_t=t_obs, obs_r=r_obs)
+
+    res = COPILOT.query(
+        req.query, b_celsius, b_rain, t_bounds, r_bounds, DEM, LATS, LONS, rolling_rmse
+    )
+
+    return CopilotQueryResponse(
+        status="success",
+        query=req.query,
+        severity=res["severity"],
+        summary=res["summary"],
+        actionable_directives=res["actionable_directives"],
+        targeted_nodes=res["targeted_nodes"]
     )

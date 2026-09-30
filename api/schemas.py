@@ -58,3 +58,14 @@ class AlertResponse(BaseModel):
     total_alerts: int
     summary: Dict[str, int]
     alerts: List[AlertItem]
+
+class CopilotQueryRequest(BaseModel):
+    query: str = Field(..., example="Are there any severe flood hazards in the Himalayan region?")
+
+class CopilotQueryResponse(BaseModel):
+    status: str
+    query: str
+    severity: str
+    summary: str
+    actionable_directives: List[str]
+    targeted_nodes: List[str]
