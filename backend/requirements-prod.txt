@@ -1,0 +1,20 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Core ML & Scientific Computing (Lightweight CPU)
+torch==2.2.0+cpu
+numpy==1.26.4
+scipy
+pandas
+
+# Spatial & Array Utilities (pure python / binary wheels)
+xarray
+zarr
+
+# Backend Framework & Networking
+fastapi==0.110.0
+uvicorn==0.27.1
+pydantic==2.6.3
+pydantic-settings==2.2.1
+sqlalchemy==2.0.28
+httpx==0.27.0
+python-multipart
