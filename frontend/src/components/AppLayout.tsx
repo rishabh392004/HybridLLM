@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { RegionSelector } from './RegionSelector';
-import { LeadTimeHours, WeatherParameter, UserRole } from '../api/types';
+import { LanguageSelector } from './LanguageSelector';
+import { WelcomeModal } from './WelcomeModal';
+import { getMockBlend, getMockAlerts } from '../api/mock';
+import { UserRole, LeadTimeHours, WeatherParameter } from '../api/types';
 import {
   Map,
   Scale,
@@ -14,25 +18,112 @@ import {
   Moon,
   LogOut,
   Zap,
-  Menu,
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
   UserCheck,
+  Activity,
+  Download,
+  Clock,
+  Radio,
+  ChevronRight as BreadcrumbSeparator,
+  Globe2,
 } from 'lucide-react';
 
+// ── Source color registry ────────────────────────────────────
+const SOURCE_COLOR_MAP: Record<string, string> = {
+  'ECMWF IFS': 'var(--source-nwp)',
+  'NWP (NCMRWF/GFS)': 'var(--source-nwp)',
+  'FourCastNet AI': 'var(--source-ai)',
+  'GraphCast AI': 'var(--source-ai)',
+  'Ensemble (GEFS)': 'var(--source-ensemble)',
+  'WRF Regional': 'var(--source-regional)',
+  'AI Model (FourCastNet)': 'var(--source-ai)',
+};
+
+function getSourceColor(sourceName: string): string {
+  for (const key of Object.keys(SOURCE_COLOR_MAP)) {
+    if (sourceName.includes(key) || key.includes(sourceName.split(' ')[0])) {
+      return SOURCE_COLOR_MAP[key];
+    }
+  }
+  const palette = [
+    'var(--source-nwp)',
+    'var(--source-ai)',
+    'var(--source-ensemble)',
+    'var(--source-regional)',
+  ];
+  return palette[0];
+}
+
+// ── Trust Bar (Adaptive Weights Allocation Visualizer) ───────
+const TrustBar: React.FC<{ region: string; lead: number; param: string }> = ({
+  region,
+  lead,
+  param,
+}) => {
+  const data = useMemo(() => {
+    try {
+      return getMockBlend(region, lead as LeadTimeHours, param as WeatherParameter);
+    } catch {
+      return null;
+    }
+  }, [region, lead, param]);
+
+  if (!data?.sources?.length) return <div className="h-[3px] w-full bg-white/5" />;
+
+  const segments = data.sources.map((s) => ({
+    name: s.source,
+    weight: s.weight,
+    color: getSourceColor(s.source),
+  }));
+
+  const total = segments.reduce((acc, s) => acc + s.weight, 0);
+
+  return (
+    <div
+      className="trust-bar w-full h-[3px] flex overflow-hidden"
+      role="presentation"
+      aria-label="Live blend weight allocation"
+      title={segments.map((s) => `${s.name}: ${Math.round((s.weight / total) * 100)}%`).join(' · ')}
+    >
+      {segments.map((seg, i) => (
+        <div
+          key={i}
+          className="trust-bar-segment transition-all duration-300"
+          style={{
+            width: `${(seg.weight / total) * 100}%`,
+            background: seg.color,
+            opacity: 0.9,
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
+// ── Main Layout ───────────────────────────────────────────────
 export const AppLayout: React.FC = () => {
   const { user, role, switchRole, logout, theme, toggleTheme } = useAuth();
+  const { t } = useLanguage();
   const [collapsed, setCollapsed] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
 
-  // URL state persistence
   const currentRegion = searchParams.get('region') || 'Konkan & Goa';
-  const currentParam = (searchParams.get('param') as WeatherParameter) || 'rainfall';
-  const currentLead = (Number(searchParams.get('lead')) as LeadTimeHours) || 24;
+  const currentLead = Number(searchParams.get('lead')) || 24;
+  const currentParam = searchParams.get('param') || 'rainfall';
+
+  // Count active alerts for status strip
+  const activeAlertsCount = useMemo(() => {
+    try {
+      const list = getMockAlerts(currentRegion);
+      return list.filter((a) => a.severity === 'severe' || a.severity === 'warning').length;
+    } catch {
+      return 2;
+    }
+  }, [currentRegion]);
 
   const updateParam = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -40,81 +131,116 @@ export const AppLayout: React.FC = () => {
     setSearchParams(next, { replace: true });
   };
 
-  const handleRegionChange = (newRegion: string) => {
-    updateParam('region', newRegion);
-  };
+  const handleRegionChange = (newRegion: string) => updateParam('region', newRegion);
 
-  // Demo Mode: Quickly loads extreme rainfall scenario in Konkan & Goa
   const triggerDemoMode = () => {
     const next = new URLSearchParams();
     next.set('region', 'Konkan & Goa');
     next.set('param', 'rainfall');
     next.set('lead', '24');
     setSearchParams(next);
-    // If not on map or alerts, allow user to view map
     if (location.pathname === '/login' || location.pathname === '/register') {
       navigate('/?region=Konkan%20%26%20Goa&param=rainfall&lead=24');
     }
   };
 
   const navItems = [
-    { to: '/', label: 'Blended Map', icon: Map, badge: null },
-    { to: '/weights', label: 'Model Weights', icon: Scale, badge: null },
-    { to: '/compare', label: 'Comparison', icon: BarChart3, badge: null },
-    { to: '/scoreboard', label: 'Scoreboard', icon: Trophy, badge: '#1 Blend' },
-    { to: '/alerts', label: 'Alerts & Actions', icon: AlertTriangle, badge: 'Live' },
-    { to: '/override', label: 'Export & Override', icon: Sliders, badge: null },
+    { to: '/', label: t('nav_blended_map', 'Blended Map'), icon: Map, badge: null },
+    { to: '/weights', label: t('nav_model_weights', 'Model Weights'), icon: Scale, badge: null },
+    { to: '/compare', label: t('nav_comparison', 'Comparison'), icon: BarChart3, badge: null },
+    { to: '/scoreboard', label: t('nav_scoreboard', 'Scoreboard'), icon: Trophy, badge: '#1 Blend' },
+    { to: '/alerts', label: t('nav_alerts', 'Alerts & Actions'), icon: AlertTriangle, badge: `${activeAlertsCount} Live` },
+    { to: '/override', label: t('nav_export', 'Export & Override'), icon: Sliders, badge: null },
+    { to: '/visualize', label: t('nav_visualize', '3D Visualizer'), icon: Globe2, badge: 'New' },
   ];
 
-  const roleLabels: Record<UserRole, { label: string; color: string }> = {
-    analyst: { label: 'Meteorologist', color: 'bg-teal-500/20 text-teal-400 border-teal-500/30' },
-    disaster_management: { label: 'Disaster Cell', color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
-    farmer: { label: 'Agro Advisory', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+  // Map route path to human-readable breadcrumb label
+  const pageBreadcrumbs: Record<string, string> = {
+    '/': 'Blended Surface Forecast',
+    '/map': 'Blended Surface Forecast',
+    '/weights': 'Dynamic Weights & Calibration',
+    '/compare': 'Multi-Model Skill Comparison',
+    '/scoreboard': 'IMD Verified Scoreboard',
+    '/alerts': 'Action Protocols & Directives',
+    '/override': 'Interactive Override & Export',
+    '/visualize': '3D Forecast Visualizer',
   };
 
+  const currentBreadcrumb = pageBreadcrumbs[location.pathname] || 'Operational Room';
+
+  const sourceLegend = [
+    { label: 'NWP', color: 'var(--source-nwp)' },
+    { label: 'AI', color: 'var(--source-ai)' },
+    { label: 'ENS', color: 'var(--source-ensemble)' },
+    { label: 'REG', color: 'var(--source-regional)' },
+  ];
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background text-text-primary">
-      {/* Sidebar - Desktop */}
+    <div className="flex h-screen w-screen overflow-hidden bg-void text-text-primary">
+      <WelcomeModal />
+
+      {/* ── Sidebar ─────────────────────────────────────── */}
       <aside
-        className={`hidden md:flex flex-col border-r border-border bg-surface/80 backdrop-blur-xl transition-all duration-300 z-30 ${
-          collapsed ? 'w-20' : 'w-64'
+        className={`hidden md:flex flex-col border-r border-border transition-all duration-300 z-30 shrink-0 bg-surface ${
+          collapsed ? 'w-[68px]' : 'w-60'
         }`}
       >
-        {/* Brand Header */}
-        <div className="flex items-center justify-between px-4 h-16 border-b border-border/80">
+        {/* Brand */}
+        <div className="flex items-center justify-between px-3.5 h-14 border-b border-border">
           {!collapsed ? (
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-accent-hover to-teal-300 flex items-center justify-center shadow-glow-teal text-slate-950 font-black text-sm">
-                FC
-              </div>
-              <div className="flex flex-col">
-                <span className="font-heading font-bold text-base tracking-tight text-text-primary leading-tight">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <img
+                src="/logo.png"
+                alt="ForeCombine Logo"
+                className="w-8 h-8 rounded-xl object-contain shrink-0 shadow-sm border border-teal-500/30 bg-white/10 p-0.5"
+              />
+              <div className="flex flex-col min-w-0">
+                <span className="font-heading font-bold text-[14px] tracking-tight text-text-primary leading-tight truncate">
                   ForeCombine
                 </span>
-                <span className="text-[10px] font-semibold text-accent tracking-widest uppercase">
-                  AI-NWP Blending
+                <span className="text-[9px] font-mono tracking-[0.14em] uppercase text-teal-400 font-semibold">
+                  AI·NWP Blending
                 </span>
               </div>
             </div>
           ) : (
-            <div className="w-8 h-8 mx-auto rounded-xl bg-gradient-to-tr from-accent-hover to-teal-300 flex items-center justify-center shadow-glow-teal text-slate-950 font-black text-sm">
-              FC
-            </div>
+            <img
+              src="/logo.png"
+              alt="ForeCombine Logo"
+              className="w-8 h-8 mx-auto rounded-xl object-contain shrink-0 shadow-sm border border-teal-500/30 bg-white/10 p-0.5"
+            />
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
+            className={`p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors ${
+              collapsed ? 'mx-auto mt-0' : ''
+            }`}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
           </button>
         </div>
 
-        {/* Navigation links */}
-        <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto" aria-label="Main Navigation">
+        {/* Live status badge */}
+        {!collapsed && (
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border/70 bg-surface/50">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-teal-500" />
+              </span>
+              <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-teal-400">
+                IMD Radar · Live
+              </span>
+            </div>
+            <span className="text-[9px] font-mono text-text-muted">3m ago</span>
+          </div>
+        )}
+
+        {/* Navigation */}
+        <nav className="flex-1 py-2 px-2.5 space-y-1 overflow-y-auto" aria-label="Main Navigation">
           {navItems.map((item) => {
             const Icon = item.icon;
-            // Preserving query params across page navigation
             const targetUrl = `${item.to}${location.search}`;
 
             return (
@@ -123,32 +249,40 @@ export const AppLayout: React.FC = () => {
                 to={targetUrl}
                 end={item.to === '/'}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative ${
+                  `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 relative ${
                     isActive
-                      ? 'bg-accent/15 text-accent font-semibold shadow-sm border border-accent/25'
-                      : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover/70'
+                      ? 'bg-teal-500/10 text-teal-400 border border-teal-500/30 shadow-[0_0_15px_rgba(45,212,191,0.15)] font-semibold'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-transparent'
                   }`
                 }
+                title={collapsed ? item.label : undefined}
               >
                 {({ isActive }) => (
                   <>
                     <Icon
-                      className={`w-5 h-5 shrink-0 transition-colors ${
-                        isActive ? 'text-accent' : 'text-text-muted group-hover:text-text-primary'
+                      className={`shrink-0 transition-colors ${
+                        isActive ? 'text-teal-400' : 'text-text-muted group-hover:text-text-primary'
                       }`}
+                      size={17}
                     />
                     {!collapsed && (
-                      <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center justify-between w-full min-w-0">
                         <span className="truncate">{item.label}</span>
                         {item.badge && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/20 text-accent font-bold uppercase tracking-wider">
+                          <span
+                            className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                              item.badge.includes('Live')
+                                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse'
+                                : 'bg-teal-500/15 text-teal-300 border border-teal-500/30'
+                            }`}
+                          >
                             {item.badge}
                           </span>
                         )}
                       </div>
                     )}
                     {collapsed && isActive && (
-                      <span className="absolute right-1 w-1.5 h-6 bg-accent rounded-full" />
+                      <span className="absolute right-0 w-1 h-5 bg-teal-400 rounded-l-full" />
                     )}
                   </>
                 )}
@@ -157,112 +291,167 @@ export const AppLayout: React.FC = () => {
           })}
         </nav>
 
-        {/* SIH Hackathon & System Tag */}
+        {/* Source color legend */}
         {!collapsed && (
-          <div className="p-3 mx-3 mb-3 rounded-xl bg-surface-card border border-border/70 text-xs">
-            <div className="flex items-center gap-1.5 text-accent font-medium mb-1">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>SIH 2026 • MoES</span>
+          <div className="mx-2.5 mb-2.5 p-3 rounded-xl border border-border/80 bg-surface/70">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-mono font-bold text-text-muted tracking-wider uppercase">
+                4-Model Ensembling
+              </span>
+              <ShieldCheck className="w-3 h-3 text-teal-400" />
             </div>
-            <p className="text-[11px] text-text-muted leading-relaxed">
-              IMD High-Resolution Adaptive Blending Core v2.4
-            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {sourceLegend.map((s) => (
+                <div key={s.label} className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
+                  <span className="text-[10px] text-text-secondary font-mono font-medium">{s.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Sidebar user footer */}
-        <div className="p-3 border-t border-border/80 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded-full bg-surface-active flex items-center justify-center font-bold text-xs text-text-primary shrink-0">
-              {user?.name ? user.name[0] : 'U'}
-            </div>
-            {!collapsed && (
-              <div className="flex flex-col truncate">
-                <span className="text-xs font-semibold text-text-primary truncate">
+        {/* User profile footer */}
+        <div className="p-3 border-t border-border flex items-center gap-2.5 bg-surface/40">
+          <div
+            className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-[12px] text-white shrink-0 shadow-sm"
+            style={{ background: 'linear-gradient(135deg, #0d9488 0%, #6366f1 100%)' }}
+          >
+            {user?.name ? user.name[0].toUpperCase() : 'O'}
+          </div>
+          {!collapsed && (
+            <>
+              <div className="flex flex-col flex-1 min-w-0">
+                <span className="text-[12px] font-semibold text-text-primary truncate leading-tight">
                   {user?.name || 'Observer'}
                 </span>
-                <span className="text-[10px] text-text-muted truncate">{user?.agency || 'MoES'}</span>
+                <span className="text-[10px] text-text-muted truncate">{user?.agency || 'MoES / IMD'}</span>
               </div>
-            )}
-          </div>
-          <button
-            onClick={logout}
-            className="p-1.5 text-text-muted hover:text-red-400 hover:bg-surface-hover rounded-lg transition-colors"
-            title="Sign out"
-            aria-label="Sign out"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+              <button
+                onClick={logout}
+                className="p-1.5 text-text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors shrink-0"
+                title="Sign out"
+                aria-label="Sign out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </>
+          )}
         </div>
       </aside>
 
-      {/* Main Content Viewport */}
+      {/* ── Main Content Area ──────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top Control Bar / Header */}
-        <header className="h-16 border-b border-border bg-surface/80 backdrop-blur-xl px-4 flex items-center justify-between gap-3 z-20">
-          <div className="flex items-center gap-3">
-            <div className="md:hidden flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center text-slate-950 font-black text-xs">
-                FC
-              </div>
-              <span className="font-heading font-bold text-sm">ForeCombine</span>
+        {/* Top Header */}
+        <header className="h-14 px-4 flex items-center justify-between gap-3 z-20 shrink-0 border-b border-border bg-surface/85 backdrop-blur-xl">
+          {/* Left section: Breadcrumb & Region */}
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Mobile logo */}
+            <div className="md:hidden flex items-center gap-2 shrink-0">
+              <img
+                src="/logo.png"
+                alt="ForeCombine Logo"
+                className="w-7 h-7 rounded-lg object-contain shrink-0 border border-teal-500/40 bg-white/10 p-0.5"
+              />
+              <span className="font-heading font-bold text-[13px] text-text-primary">ForeCombine</span>
             </div>
 
-            {/* Region Selector in Header */}
+            {/* Breadcrumb path for desktop */}
+            <div className="hidden xl:flex items-center gap-1.5 text-xs text-text-muted font-mono shrink-0">
+              <span className="text-text-secondary font-medium">Control Room</span>
+              <BreadcrumbSeparator className="w-3 h-3 text-border" />
+              <span className="text-teal-400 font-semibold">{currentBreadcrumb}</span>
+              <BreadcrumbSeparator className="w-3 h-3 text-border" />
+            </div>
+
             <RegionSelector
               selectedRegion={currentRegion}
               onChange={handleRegionChange}
-              className="max-w-[210px] sm:max-w-xs"
+              className="max-w-[200px] sm:max-w-xs"
             />
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Quick Demo Mode Button */}
+          {/* Right section: Actions & Status strip */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Live Data Freshness Badge */}
+            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-surface/60 text-[11px] font-mono text-text-secondary">
+              <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
+              <span>MoES Grid · Fresh</span>
+            </div>
+
+            <LanguageSelector />
+
+            {/* Download Project ZIP option */}
+            <a
+              href="/ForeCombine-Operational-Platform.zip"
+              download="ForeCombine-Operational-Platform.zip"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold text-teal-400 border border-teal-500/30 bg-teal-500/10 hover:bg-teal-500/20 transition-all shrink-0 shadow-sm"
+              title="Download Full Project Source Code (ZIP)"
+              aria-label="Download project zip"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Source ZIP</span>
+            </a>
+
+            {/* Demo button */}
             <button
               onClick={triggerDemoMode}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-500/20 to-amber-500/20 hover:from-red-500/30 hover:to-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold shadow-sm transition-all duration-200"
-              title="Jump to Extreme Rainfall Demo in Konkan & Goa"
-              aria-label="Demo mode extreme rainfall"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold text-amber-300 border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-all shrink-0 shadow-sm"
+              title="Jump to Extreme Monsoon Event (Konkan)"
+              aria-label="Demo mode"
             >
-              <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400 animate-pulse" />
-              <span className="hidden sm:inline">Demo Extreme Event</span>
-              <span className="sm:hidden">Demo</span>
+              <Zap className="w-3.5 h-3.5 fill-amber-400 text-amber-400 shrink-0" />
+              <span className="hidden lg:inline">{t('demo_event', 'Extreme Event Demo')}</span>
+              <span className="lg:hidden">Demo</span>
             </button>
 
-            {/* Role Switcher for 5-minute walkthrough showcase */}
-            <div className="flex items-center gap-1.5 bg-surface border border-border rounded-xl px-2 py-1">
-              <UserCheck className="w-3.5 h-3.5 text-text-muted hidden sm:inline" />
+            {/* Role switcher */}
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-border bg-surface text-[11px] shrink-0">
+              <UserCheck className="w-3.5 h-3.5 text-teal-400 hidden md:inline shrink-0" />
               <select
                 value={role}
                 onChange={(e) => switchRole(e.target.value as UserRole)}
-                className="bg-transparent text-xs font-semibold text-text-primary focus:outline-none cursor-pointer"
-                aria-label="Change active perspective role"
+                className="bg-transparent text-[11px] font-semibold text-text-primary focus:outline-none cursor-pointer max-w-[110px] md:max-w-none"
+                aria-label="Change active role"
               >
-                <option value="analyst" className="bg-surface">Role: Meteorologist</option>
-                <option value="disaster_management" className="bg-surface">Role: Disaster Mgmt</option>
-                <option value="farmer" className="bg-surface">Role: Farmer / Agro</option>
+                <option value="analyst" className="bg-slate-900 text-slate-100 py-1.5">
+                  {t('role_analyst', 'Meteorologist')}
+                </option>
+                <option value="disaster_management" className="bg-slate-900 text-slate-100 py-1.5">
+                  {t('role_disaster', 'Disaster Mgmt')}
+                </option>
+                <option value="farmer" className="bg-slate-900 text-slate-100 py-1.5">
+                  {t('role_farmer', 'Farmer / Agro')}
+                </option>
               </select>
             </div>
 
-            {/* Dark / Light Mode Toggle */}
+            {/* Theme toggle */}
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-surface-hover border border-border/70 transition-colors"
+              className="p-2 rounded-xl text-text-secondary hover:text-text-primary bg-surface border border-border shadow-sm hover:border-teal-500/40 transition-all"
               aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-sky-400" />}
+              {theme === 'dark' ? (
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+              ) : (
+                <Moon className="w-3.5 h-3.5 text-indigo-500" />
+              )}
             </button>
           </div>
         </header>
 
-        {/* View Content Body */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-background">
+        {/* ── Trust Bar ──────────────────────────── */}
+        <TrustBar region={currentRegion} lead={currentLead} param={currentParam} />
+
+        {/* Page Content */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-void relative">
           <Outlet />
         </main>
 
-        {/* Mobile Bottom Tab Bar */}
+        {/* Mobile Bottom Nav */}
         <nav
-          className="md:hidden flex items-center justify-around h-14 border-t border-border bg-surface/95 backdrop-blur-lg px-2 z-30"
+          className="md:hidden flex items-center justify-around h-14 border-t border-border px-1 z-30 shrink-0 bg-surface/95 backdrop-blur-md"
           aria-label="Mobile Navigation"
         >
           {navItems.map((item) => {
@@ -275,13 +464,23 @@ export const AppLayout: React.FC = () => {
                 to={targetUrl}
                 end={item.to === '/'}
                 className={({ isActive }) =>
-                  `flex flex-col items-center justify-center py-1 px-2 text-[10px] font-medium transition-colors ${
-                    isActive ? 'text-accent font-semibold' : 'text-text-muted hover:text-text-secondary'
+                  `relative flex flex-col items-center justify-center py-1 px-2 text-[9px] font-semibold transition-colors gap-0.5 rounded-xl ${
+                    isActive ? 'text-teal-400' : 'text-text-muted hover:text-text-secondary'
                   }`
                 }
               >
-                <Icon className="w-5 h-5 mb-0.5" />
-                <span className="truncate max-w-[50px]">{item.label.split(' ')[0]}</span>
+                {({ isActive }) => (
+                  <>
+                    {isActive && (
+                      <span
+                        className="absolute inset-x-0 -top-px h-[2px] rounded-b-full"
+                        style={{ background: 'linear-gradient(90deg, transparent, #2dd4bf, transparent)' }}
+                      />
+                    )}
+                    <Icon className="w-4.5 h-4.5" size={18} />
+                    <span className="truncate max-w-[44px]">{item.label.split(' ')[0]}</span>
+                  </>
+                )}
               </NavLink>
             );
           })}

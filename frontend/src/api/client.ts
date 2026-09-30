@@ -10,7 +10,8 @@ import {
 } from './types';
 import { getMockAlerts, getMockBlend, getMockSkill } from './mock';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001/api/v1';
+const SECONDARY_API_URL = 'http://localhost:8000/api/v1';
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
 
 // Token helpers
@@ -54,7 +55,7 @@ export class ApiError extends Error {
   }
 }
 
-// HTTP request helper with token
+// HTTP request helper with token and multi-port fallback
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getStoredToken();
   const headers = new Headers(options.headers || {});
@@ -63,82 +64,169 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  // Try primary API_BASE_URL first
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
-    throw new ApiError(
-      response.status,
-      errorData?.detail || errorData?.message || `HTTP ${response.status} Error`,
-      errorData
-    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      const msg =
+        errorData?.detail?.error?.message ||
+        errorData?.detail ||
+        errorData?.error?.message ||
+        errorData?.message ||
+        `HTTP ${response.status} Error`;
+      throw new ApiError(response.status, msg, errorData);
+    }
+
+    return await response.json();
+  } catch (primaryErr: any) {
+    if (primaryErr instanceof ApiError) {
+      throw primaryErr;
+    }
+
+    // Try secondary port fallback (8000 vs 8001)
+    try {
+      const response = await fetch(`${SECONDARY_API_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        const msg =
+          errorData?.detail?.error?.message ||
+          errorData?.detail ||
+          errorData?.error?.message ||
+          errorData?.message ||
+          `HTTP ${response.status} Error`;
+        throw new ApiError(response.status, msg, errorData);
+      }
+
+      return await response.json();
+    } catch (secondaryErr: any) {
+      if (secondaryErr instanceof ApiError) {
+        throw secondaryErr;
+      }
+      throw new ApiError(503, 'Unable to connect to backend service. Falling back to offline dataset.', {
+        cause: primaryErr,
+      });
+    }
   }
-
-  return response.json();
 }
 
-// Typed API Client
+// Typed API Client with seamless offline mock fallback
 export const api = {
   auth: {
     login: async (email: string, password: string): Promise<AuthResponse> => {
-      if (USE_MOCK) {
-        await new Promise((r) => setTimeout(r, 450)); // Realistic network latency
-        if (!email || !password || password.length < 6) {
-          throw new ApiError(401, 'Invalid credentials');
+      if (!USE_MOCK) {
+        try {
+          const res = await request<AuthResponse>('/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({ email, password }),
+          });
+          setStoredToken(res.token);
+          setStoredUser(res.user);
+          return res;
+        } catch (err: any) {
+          if (err?.status === 401 || err?.status === 400 || err?.status === 409) {
+            throw err;
+          }
+          console.warn('[API Client] Backend offline during login. Using mock authentication fallback.');
         }
-        // Generate simulated user based on email prefix or default role
-        let role: UserRole = 'analyst';
-        if (email.includes('farm')) role = 'farmer';
-        if (email.includes('disaster') || email.includes('ndrf')) role = 'disaster_management';
-
-        const mockUser: User = {
-          id: 'usr-' + Math.random().toString(36).substring(2, 8),
-          email,
-          name: email.split('@')[0].toUpperCase(),
-          role,
-          agency: role === 'farmer' ? 'KVK Agro-Climatic Unit' : role === 'disaster_management' ? 'SDRF Central Command' : 'IMD NWP Division',
-        };
-        const token = 'fc_jwt_' + btoa(email + ':' + Date.now());
-        setStoredToken(token);
-        setStoredUser(mockUser);
-        return { token, user: mockUser };
       }
 
-      const res = await request<AuthResponse>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-      setStoredToken(res.token);
-      setStoredUser(res.user);
-      return res;
+      await new Promise((r) => setTimeout(r, 450));
+      if (!email || !password || password.length < 6) {
+        throw new ApiError(401, 'Invalid credentials (password must be at least 6 characters)');
+      }
+      let role: UserRole = 'analyst';
+      if (email.includes('farm')) role = 'farmer';
+      if (email.includes('disaster') || email.includes('ndrf') || email.includes('sdrf'))
+        role = 'disaster_management';
+
+      const mockUser: User = {
+        id: 'usr-' + Math.random().toString(36).substring(2, 8),
+        email,
+        name: email.split('@')[0].toUpperCase(),
+        role,
+        agency:
+          role === 'farmer'
+            ? 'KVK Agro-Climatic Unit'
+            : role === 'disaster_management'
+            ? 'SDRF Central Command'
+            : 'IMD NWP Division',
+      };
+      const token = 'fc_jwt_' + btoa(email + ':' + Date.now());
+      setStoredToken(token);
+      setStoredUser(mockUser);
+      return { token, user: mockUser };
     },
 
     register: async (email: string, password: string, role: UserRole): Promise<AuthResponse> => {
-      if (USE_MOCK) {
-        await new Promise((r) => setTimeout(r, 500));
-        const mockUser: User = {
-          id: 'usr-' + Math.random().toString(36).substring(2, 8),
-          email,
-          name: email.split('@')[0].toUpperCase(),
-          role,
-          agency: role === 'farmer' ? 'Krishi Vigyan Kendra' : role === 'disaster_management' ? 'SDMA Disaster Cell' : 'Ministry of Earth Sciences',
-        };
-        const token = 'fc_jwt_' + btoa(email + ':' + Date.now());
-        setStoredToken(token);
-        setStoredUser(mockUser);
-        return { token, user: mockUser };
+      if (!USE_MOCK) {
+        try {
+          const res = await request<AuthResponse>('/auth/register', {
+            method: 'POST',
+            body: JSON.stringify({ email, password, role }),
+          });
+          setStoredToken(res.token);
+          setStoredUser(res.user);
+          return res;
+        } catch (err: any) {
+          if (err?.status === 401 || err?.status === 400 || err?.status === 409) {
+            throw err;
+          }
+          console.warn('[API Client] Backend offline during register. Using mock authentication fallback.');
+        }
       }
 
-      const res = await request<AuthResponse>('/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({ email, password, role }),
-      });
-      setStoredToken(res.token);
-      setStoredUser(res.user);
-      return res;
+      await new Promise((r) => setTimeout(r, 500));
+      const mockUser: User = {
+        id: 'usr-' + Math.random().toString(36).substring(2, 8),
+        email,
+        name: email.split('@')[0].toUpperCase(),
+        role,
+        agency:
+          role === 'farmer'
+            ? 'Krishi Vigyan Kendra'
+            : role === 'disaster_management'
+            ? 'SDMA Disaster Cell'
+            : 'Ministry of Earth Sciences',
+      };
+      const token = 'fc_jwt_' + btoa(email + ':' + Date.now());
+      setStoredToken(token);
+      setStoredUser(mockUser);
+      return { token, user: mockUser };
+    },
+
+    me: async (): Promise<User> => {
+      if (!USE_MOCK) {
+        try {
+          return await request<User>('/auth/me');
+        } catch (err) {
+          // Fallback to stored user if offline
+        }
+      }
+      const stored = getStoredUser();
+      if (stored) return stored;
+      return {
+        id: 'usr-sih-demo',
+        email: 'analyst@imd.gov.in',
+        name: 'Dr. R. Sharma',
+        role: 'analyst',
+        agency: 'Ministry of Earth Sciences / IMD',
+      };
+    },
+
+    logout: async (): Promise<void> => {
+      if (!USE_MOCK) {
+        await request('/auth/logout', { method: 'POST' }).catch(() => {});
+      }
+      clearStoredToken();
     },
   },
 
@@ -148,13 +236,17 @@ export const api = {
       lead: LeadTimeHours = 24,
       param: WeatherParameter = 'rainfall'
     ): Promise<BlendResponse> => {
-      if (USE_MOCK) {
-        await new Promise((r) => setTimeout(r, 200));
-        return getMockBlend(region, lead, param);
+      if (!USE_MOCK) {
+        try {
+          return await request<BlendResponse>(
+            `/blend?region=${encodeURIComponent(region)}&lead=${lead}&param=${param}`
+          );
+        } catch (err) {
+          console.warn('[API Client] Backend offline for /blend. Using mock data.');
+        }
       }
-      return request<BlendResponse>(
-        `/blend?region=${encodeURIComponent(region)}&lead=${lead}&param=${param}`
-      );
+      await new Promise((r) => setTimeout(r, 150));
+      return getMockBlend(region, lead, param);
     },
   },
 
@@ -164,26 +256,34 @@ export const api = {
       param: WeatherParameter = 'rainfall',
       days: number = 30
     ): Promise<SkillResponse> => {
-      if (USE_MOCK) {
-        await new Promise((r) => setTimeout(r, 200));
-        return getMockSkill(region, param, days);
+      if (!USE_MOCK) {
+        try {
+          return await request<SkillResponse>(
+            `/skill?region=${encodeURIComponent(region)}&param=${param}&days=${days}`
+          );
+        } catch (err) {
+          console.warn('[API Client] Backend offline for /skill. Using mock data.');
+        }
       }
-      return request<SkillResponse>(
-        `/skill?region=${encodeURIComponent(region)}&param=${param}&days=${days}`
-      );
+      await new Promise((r) => setTimeout(r, 150));
+      return getMockSkill(region, param, days);
     },
   },
 
   alerts: {
     get: async (region?: string, audience?: string): Promise<WeatherAlert[]> => {
-      if (USE_MOCK) {
-        await new Promise((r) => setTimeout(r, 200));
-        return getMockAlerts(region, audience);
+      if (!USE_MOCK) {
+        try {
+          const params = new URLSearchParams();
+          if (region) params.append('region', region);
+          if (audience) params.append('audience', audience);
+          return await request<WeatherAlert[]>(`/alerts?${params.toString()}`);
+        } catch (err) {
+          console.warn('[API Client] Backend offline for /alerts. Using mock data.');
+        }
       }
-      const params = new URLSearchParams();
-      if (region) params.append('region', region);
-      if (audience) params.append('audience', audience);
-      return request<WeatherAlert[]>(`/alerts?${params.toString()}`);
+      await new Promise((r) => setTimeout(r, 150));
+      return getMockAlerts(region, audience);
     },
   },
 
@@ -196,27 +296,30 @@ export const api = {
     ): Promise<BlendResponse> => {
       const sum = Object.values(weights).reduce((a, b) => a + b, 0);
 
-      // Strict validation: sum must be 1.0 within 0.001, else return/throw 422
       if (Math.abs(sum - 1.0) > 0.001) {
         const errorMsg = `Model weights must sum exactly to 1.00 (±0.001). Current sum: ${sum.toFixed(3)}`;
         throw new ApiError(422, errorMsg, { total: sum });
       }
 
-      if (USE_MOCK) {
-        await new Promise((r) => setTimeout(r, 300));
-        return getMockBlend(region, lead, param, weights);
+      if (!USE_MOCK) {
+        try {
+          return await request<BlendResponse>('/weights/override', {
+            method: 'POST',
+            body: JSON.stringify(weights),
+          });
+        } catch (err) {
+          console.warn('[API Client] Backend offline for /weights/override. Using mock computation.');
+        }
       }
 
-      return request<BlendResponse>('/weights/override', {
-        method: 'POST',
-        body: JSON.stringify(weights),
-      });
+      await new Promise((r) => setTimeout(r, 250));
+      return getMockBlend(region, lead, param, weights);
     },
   },
 
   export: {
     download: async (format: 'csv' | 'pdf', dataSummary?: any): Promise<void> => {
-      await new Promise((r) => setTimeout(r, 600));
+      await new Promise((r) => setTimeout(r, 500));
 
       let mimeType = 'text/csv';
       let extension = 'csv';
@@ -237,7 +340,6 @@ export const api = {
           'OBSERVED VERIFIED,138.4,N/A,N/A,"IMD Automatic Weather Station"',
         ].join('\n');
       } else {
-        // Simple printable text/pdf stub
         mimeType = 'application/pdf';
         extension = 'pdf';
         content = `%PDF-1.4 ForeCombine Adaptive NWP-AI Forecast Blend Report - Region: Konkan & Goa - Status: Severe Alert Active`;

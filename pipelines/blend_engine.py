@@ -124,15 +124,38 @@ class ConformalPredictor:
         return (temp_lower, temp_upper, self.q_temp), (rain_lower, rain_upper, self.q_rain)
 
 class OperationalBlender:
-    def __init__(self, meta_path="models/model_metadata.json"):
-        with open(meta_path, "r") as f:
-            self.meta = json.load(f)
+    def __init__(self, meta_path: str = "models/model_metadata.json", model_path: str = "models/best_blending_unet.pt"):
+        import os
+        self.meta = {}
+        if os.path.exists(meta_path):
+            with open(meta_path, "r") as f:
+                self.meta = json.load(f)
 
         self.t_mean = self.meta.get("t_mean", 295.37)
         self.t_std = self.meta.get("t_std", 10.73)
         self.extreme_thresh = self.meta.get("extreme_threshold", 303.76)
         
         self.model = MultiTaskBlendingUNet(num_models=2, num_vars=2, has_dem=True)
+        self.model_loaded = False
+        if model_path and os.path.exists(model_path):
+            try:
+                state_dict = torch.load(model_path, map_location="cpu")
+                if isinstance(state_dict, dict):
+                    own_state = self.model.state_dict()
+                    filtered_dict = {}
+                    for k, v in state_dict.items():
+                        mapped_k = k.replace("conv1.", "enc1.").replace("conv2.", "enc2.")
+                        if mapped_k in own_state and own_state[mapped_k].shape == v.shape:
+                            filtered_dict[mapped_k] = v
+                        elif k in own_state and own_state[k].shape == v.shape:
+                            filtered_dict[k] = v
+                    if filtered_dict:
+                        own_state.update(filtered_dict)
+                        self.model.load_state_dict(own_state)
+                    self.model_loaded = True
+            except Exception:
+                self.model_loaded = False
+
         self.model.eval()
         self.uq = ConformalPredictor(alpha=0.10)
         self.bias_corrector = RealTimeBiasCorrector(shape=(35, 35), momentum=0.35)

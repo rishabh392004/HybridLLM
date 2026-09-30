@@ -18,14 +18,14 @@ async function capture() {
   await page.setViewport({ width: 1440, height: 900 });
 
   const screens = [
-    { name: '01_login.png', url: 'http://localhost:5173/login', waitMs: 1500 },
-    { name: '02_register.png', url: 'http://localhost:5173/register', waitMs: 1500 },
-    { name: '03_blended_map.png', url: 'http://localhost:5173/?region=Konkan%20%26%20Goa&param=rainfall&lead=24', waitMs: 2500 },
-    { name: '04_model_weights.png', url: 'http://localhost:5173/weights?region=Konkan%20%26%20Goa&param=rainfall&lead=24', waitMs: 1800 },
-    { name: '05_model_compare.png', url: 'http://localhost:5173/compare?region=Konkan%20%26%20Goa&param=rainfall&lead=24', waitMs: 1800 },
-    { name: '06_skill_scoreboard.png', url: 'http://localhost:5173/scoreboard?region=Konkan%20%26%20Goa&param=rainfall', waitMs: 1800 },
-    { name: '07_alerts_directives.png', url: 'http://localhost:5173/alerts?region=Konkan%20%26%20Goa', waitMs: 1800 },
-    { name: '08_export_override.png', url: 'http://localhost:5173/override?region=Konkan%20%26%20Goa&param=rainfall&lead=24', waitMs: 1800 },
+    { name: '01_login.png', url: 'http://localhost:5174/login', waitMs: 1500 },
+    { name: '02_register.png', url: 'http://localhost:5174/register', waitMs: 1500 },
+    { name: '03_blended_map.png', url: 'http://localhost:5174/?region=Konkan%20%26%20Goa&param=rainfall&lead=24', waitMs: 2500 },
+    { name: '04_model_weights.png', url: 'http://localhost:5174/weights?region=Konkan%20%26%20Goa&param=rainfall&lead=24', waitMs: 1800 },
+    { name: '05_model_compare.png', url: 'http://localhost:5174/compare?region=Konkan%20%26%20Goa&param=rainfall&lead=24', waitMs: 1800 },
+    { name: '06_skill_scoreboard.png', url: 'http://localhost:5174/scoreboard?region=Konkan%20%26%20Goa&param=rainfall', waitMs: 1800 },
+    { name: '07_alerts_directives.png', url: 'http://localhost:5174/alerts?region=Konkan%20%26%20Goa', waitMs: 1800 },
+    { name: '08_export_override.png', url: 'http://localhost:5174/override?region=Konkan%20%26%20Goa&param=rainfall&lead=24', waitMs: 1800 },
   ];
 
   for (const s of screens) {

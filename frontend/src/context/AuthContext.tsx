@@ -27,7 +27,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(getStoredToken());
   const [user, setUser] = useState<User | null>(getStoredUser());
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    return (localStorage.getItem('forecombine_theme') as 'dark' | 'light') || 'dark';
+    // Default to light blue theme as requested by user
+    const saved = localStorage.getItem('forecombine_theme');
+    if (saved === 'dark') {
+      localStorage.setItem('forecombine_theme', 'light');
+      return 'light';
+    }
+    return (saved as 'dark' | 'light') || 'light';
   });
 
   useEffect(() => {

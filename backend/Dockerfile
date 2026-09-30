@@ -14,11 +14,14 @@ RUN update-ca-certificates && pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN chmod +x /app/backend/entrypoint.sh
+# Sanitize line endings for Linux container execution
+RUN sed -i 's/\r$//' /app/backend/entrypoint.sh && chmod +x /app/backend/entrypoint.sh
 
 RUN useradd -m appuser && chown -R appuser /app
 USER appuser
 
-ENV PYTHONPATH=/app/backend:/app
+ENV PYTHONPATH=/app/backend:/app \
+    PYTHONUNBUFFERED=1
+
 ENTRYPOINT ["/app/backend/entrypoint.sh"]
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

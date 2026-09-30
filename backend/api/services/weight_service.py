@@ -59,17 +59,36 @@ def compute_and_store_weights(db: Session, season: str = "ALL"):
             pass # Invalid RMSE skip
             
     if weights_to_upsert:
-        stmt = insert(Weight).values(weights_to_upsert)
-        stmt = stmt.on_conflict_do_update(
-            constraint="uix_weight_unique",
-            set_={
-                "weight": stmt.excluded.weight,
-                "previous_weight": stmt.excluded.previous_weight,
-                "reason": stmt.excluded.reason,
-                "updated_on": stmt.excluded.updated_on
-            }
-        )
-        db.execute(stmt)
+        dialect_name = getattr(db.bind.dialect, "name", "") if db.bind else ""
+        if dialect_name == "postgresql":
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+            stmt = pg_insert(Weight).values(weights_to_upsert)
+            stmt = stmt.on_conflict_do_update(
+                constraint="uix_weight_unique",
+                set_={
+                    "weight": stmt.excluded.weight,
+                    "previous_weight": stmt.excluded.previous_weight,
+                    "reason": stmt.excluded.reason,
+                    "updated_on": stmt.excluded.updated_on
+                }
+            )
+            db.execute(stmt)
+        else:
+            for item in weights_to_upsert:
+                existing = db.query(Weight).filter_by(
+                    region=item["region"],
+                    season=item["season"],
+                    lead_hours=item["lead_hours"],
+                    parameter=item["parameter"],
+                    source=item["source"]
+                ).first()
+                if existing:
+                    existing.weight = item["weight"]
+                    existing.previous_weight = item["previous_weight"]
+                    existing.reason = item["reason"]
+                    existing.updated_on = item["updated_on"]
+                else:
+                    db.add(Weight(**item))
         db.commit()
         
     return len(weights_to_upsert)

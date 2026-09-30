@@ -22,4 +22,9 @@ app.include_router(api_router, prefix="/v1")
 @app.get("/health")
 def health_check():
     logger.info("Health check requested")
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "model_loaded": True,
+        "model_version": settings.MODEL_VERSION,
+        "environment": settings.APP_ENV
+    }

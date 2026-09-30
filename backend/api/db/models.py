@@ -88,3 +88,15 @@ class Alert(Base):
     __table_args__ = (
         UniqueConstraint('region', 'parameter', 'timestamp', 'lead_hours', 'condition', name='uix_alert_unique'),
     )
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, index=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    role = Column(String, nullable=False, default="analyst")
+    agency = Column(String, nullable=False, default="IMD NWP Division")
+    created_at = Column(DateTime, default=datetime.utcnow)
+

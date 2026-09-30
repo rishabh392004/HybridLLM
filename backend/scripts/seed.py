@@ -27,43 +27,33 @@ def seed_data(days: int = 365, base_date: datetime = None):
             
             obs_list, fcst_list = generator.generate_dataset_for_day(target_date)
             
-            # Bulk upsert observations
-            if obs_list:
-                obs_dicts = [
-                    {
-                        "region": o.region,
-                        "ts": o.ts,
-                        "parameter": o.parameter,
-                        "value": o.value
-                    } for o in obs_list
-                ]
-                
-                stmt = insert(Observation).values(obs_dicts)
-                stmt = stmt.on_conflict_do_nothing(
-                    constraint='uix_observation_region_ts_param'
-                )
-                res = db.execute(stmt)
-                total_obs += res.rowcount
+            dialect_name = getattr(engine.dialect, "name", "")
+            if dialect_name == "postgresql":
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
+                if obs_list:
+                    obs_dicts = [{"region": o.region, "ts": o.ts, "parameter": o.parameter, "value": o.value} for o in obs_list]
+                    stmt = pg_insert(Observation).values(obs_dicts).on_conflict_do_nothing(constraint='uix_observation_region_ts_param')
+                    res = db.execute(stmt)
+                    total_obs += res.rowcount
 
-            # For Forecast, there is a unique constraint: 'uix_forecast_region_ts_lead_param_src'
-            # We can use ON CONFLICT DO NOTHING
-            if fcst_list:
-                fcst_dicts = [
-                    {
-                        "region": f.region,
-                        "ts": f.ts,
-                        "lead_hours": f.lead_hours,
-                        "parameter": f.parameter,
-                        "source": f.source,
-                        "value": f.value
-                    } for f in fcst_list
-                ]
-                stmt = insert(Forecast).values(fcst_dicts)
-                stmt = stmt.on_conflict_do_nothing(
-                    constraint='uix_forecast_region_ts_lead_param_src'
-                )
-                res = db.execute(stmt)
-                total_fcst += res.rowcount
+                if fcst_list:
+                    fcst_dicts = [{"region": f.region, "ts": f.ts, "lead_hours": f.lead_hours, "parameter": f.parameter, "source": f.source, "value": f.value} for f in fcst_list]
+                    stmt = pg_insert(Forecast).values(fcst_dicts).on_conflict_do_nothing(constraint='uix_forecast_region_ts_lead_param_src')
+                    res = db.execute(stmt)
+                    total_fcst += res.rowcount
+            else:
+                from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+                if obs_list:
+                    obs_dicts = [{"region": o.region, "ts": o.ts, "parameter": o.parameter, "value": o.value} for o in obs_list]
+                    stmt = sqlite_insert(Observation).values(obs_dicts).on_conflict_do_nothing()
+                    res = db.execute(stmt)
+                    total_obs += res.rowcount
+
+                if fcst_list:
+                    fcst_dicts = [{"region": f.region, "ts": f.ts, "lead_hours": f.lead_hours, "parameter": f.parameter, "source": f.source, "value": f.value} for f in fcst_list]
+                    stmt = sqlite_insert(Forecast).values(fcst_dicts).on_conflict_do_nothing()
+                    res = db.execute(stmt)
+                    total_fcst += res.rowcount
             
             db.commit()
             

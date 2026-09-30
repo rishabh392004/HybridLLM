@@ -34,17 +34,17 @@ export const ParameterToggle: React.FC<ParameterToggleProps> = ({
             onClick={() => onChange(opt.id)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 ${
               isActive
-                ? 'bg-accent text-slate-950 font-semibold shadow-sm'
+                ? 'bg-sky-600 text-white font-semibold shadow-sm'
                 : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
             }`}
             aria-pressed={isActive}
             aria-label={`${opt.label} (${opt.unit})`}
           >
-            <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-slate-950' : 'text-text-muted'}`} />
+            <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-text-muted'}`} />
             <span>{opt.label}</span>
             <span
               className={`hidden md:inline text-[10px] ${
-                isActive ? 'text-slate-800' : 'text-text-muted'
+                isActive ? 'text-white/90' : 'text-text-muted'
               }`}
             >
               {opt.unit}

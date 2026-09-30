@@ -57,3 +57,23 @@ phase1_prompt.txtscratch.txt
 
 phase1_prompt.txt
 scratch.txt
+
+# Large binary / generated files - excluded from git
+*.zip
+*.db
+*.fbx
+*.sqlite
+*.sqlite3
+test.db
+
+# Large texture / asset files
+scripts/temp_earth/
+frontend/public/ForeCombine-Operational-Platform.zip
+
+# Node modules (always excluded)
+node_modules/
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+frontend/build/

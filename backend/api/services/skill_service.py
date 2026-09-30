@@ -56,16 +56,34 @@ def compute_and_store_historical_skill(db: Session, season: str = "ALL"):
         })
         
     if skill_scores_to_upsert:
-        stmt = insert(SkillScore).values(skill_scores_to_upsert)
-        stmt = stmt.on_conflict_do_update(
-            constraint="uix_skill_score_unique",
-            set_={
-                "rmse": stmt.excluded.rmse,
-                "mae": stmt.excluded.mae,
-                "computed_on": stmt.excluded.computed_on
-            }
-        )
-        db.execute(stmt)
+        dialect_name = getattr(db.bind.dialect, "name", "") if db.bind else ""
+        if dialect_name == "postgresql":
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+            stmt = pg_insert(SkillScore).values(skill_scores_to_upsert)
+            stmt = stmt.on_conflict_do_update(
+                constraint="uix_skill_score_unique",
+                set_={
+                    "rmse": stmt.excluded.rmse,
+                    "mae": stmt.excluded.mae,
+                    "computed_on": stmt.excluded.computed_on
+                }
+            )
+            db.execute(stmt)
+        else:
+            for item in skill_scores_to_upsert:
+                existing = db.query(SkillScore).filter_by(
+                    region=item["region"],
+                    season=item["season"],
+                    lead_hours=item["lead_hours"],
+                    parameter=item["parameter"],
+                    source=item["source"]
+                ).first()
+                if existing:
+                    existing.rmse = item["rmse"]
+                    existing.mae = item["mae"]
+                    existing.computed_on = item["computed_on"]
+                else:
+                    db.add(SkillScore(**item))
         db.commit()
         
     return len(skill_scores_to_upsert)
